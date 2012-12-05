@@ -10,10 +10,20 @@
 #define sleep_ms 5
 #define period_ms 500
 
-int screen_width = 640;     //Размеры окна при старте
-int screen_height = 480;    //Потом будут браться при настройке
-SDL_Surface *screen;
+#define fieldW 298
+#define fieldH 598
+
+#define screenWidth 800
+#define screenHeight 800
+
+
+int fieldX = (screenWidth-fieldW)/2;
+int fieldY = (screenWidth-fieldH)/2;
+SDL_Surface* screen;
+SDL_Surface* graphics;
 Uint32 started;
+SDL_Rect blocks[6];
+char field[12][25];
 
 Uint32 TimeLeft(void)
 {
@@ -29,9 +39,110 @@ Uint32 TimeLeft(void)
     return(next_time-now);
 }
 
+Uint32 getpixel(SDL_Surface *surface, int x, int y)
+{
+    int bpp = surface->format->BytesPerPixel;
+    /* Here p is the address to the pixel we want to retrieve */
+    Uint8 *p = (Uint8 *)surface->pixels + y * surface->pitch + x * bpp;
+
+    switch(bpp)
+    {
+    case 1:
+        return *p;
+
+    case 2:
+        return *(Uint16 *)p;
+
+    case 3:
+        if(SDL_BYTEORDER == SDL_BIG_ENDIAN)
+            return p[0] << 16 | p[1] << 8 | p[2];
+        else
+            return p[0] | p[1] << 8 | p[2] << 16;
+
+    case 4:
+        return *(Uint32 *)p;
+
+    default:
+        return 0;       /* shouldn't happen, but avoids warnings */
+    }
+}
+
 void quit()
 {
     SDL_Quit();
+}
+
+void BorderedRect(SDL_Surface* target, int x, int y, int width, int height, Uint32 borderColor, Uint32 backgroundColor)
+{
+    SDL_Rect drawingRect;
+    drawingRect.x = x-1;
+    drawingRect.y = y-1;
+    drawingRect.w = width+2;
+    drawingRect.h = height+2;
+    SDL_FillRect(target, &drawingRect, borderColor);
+
+    drawingRect.x = x+1;
+    drawingRect.y = y+1;
+    drawingRect.w = width-2;
+    drawingRect.h = height-2;
+    SDL_FillRect(target, &drawingRect, backgroundColor);
+}
+
+void InitGame()
+{
+    int i,j;
+
+    for(i=0; i<3; i++)
+    {
+        for(j=0; j<2; j++)
+        {
+            blocks[i+j*3].x = 33*i+1;
+            blocks[i+j*3].y = 33*j+1;
+            blocks[i+j*3].w = 32;
+            blocks[i+j*3].h = 32;
+        }
+    }
+
+    for(i=1; i<11; i++)
+    {
+        for(j=0; j<24; j++)
+        {
+            field[i][j] = 0;
+        }
+    }
+
+    for(j=0; j<24; j++)
+    {
+        field[0][j] = 1;
+        field[11][j] = 1;
+    }
+
+    for(i=0; i<12; i++)
+    {
+        field[i][24] = 1;
+    }
+}
+
+void DrawBlock(int x, int y, char color)
+{
+    if(color<1||color>5) return;
+    SDL_Rect dst;
+    dst.x = x;
+    dst.y = y;
+    dst.w = 32;
+    dst.h = 32;
+    SDL_BlitSurface(graphics, &blocks[color], screen, &dst);
+}
+
+void DrawStatic()
+{
+    for(int i = 1; i<11; i++)
+    {
+        for(int j = 4; j<24; j++)
+        {
+            DrawBlock(fieldX-2+(i-1)*30, fieldY-2+(j-4)*30, field[i][j]);
+        }
+    }
 }
 
 int main(int argc, char *argv[])
@@ -45,15 +156,31 @@ int main(int argc, char *argv[])
 
     atexit(quit);
 
-    //SDL_Surface *screen;
-    screen = SDL_SetVideoMode(screen_width, screen_height, 32, videoflags);
+    screen = SDL_SetVideoMode(screenWidth, screenHeight, 32, videoflags);
     if ( screen == NULL )
     {
         fprintf(stderr, "Can't set Video mode: %s\n", SDL_GetError());
         exit(1);
     }
 
-    SDL_WM_SetCaption("Tetris",NULL); //Заголовок окна (будет браться из настроек)
+    SDL_WM_SetCaption("Tetris",NULL);
+
+    graphics = SDL_LoadBMP("graphics.bmp");
+
+    Uint32 background = getpixel(graphics, 0, 0);
+    Uint32 fieldBackground = getpixel(graphics, 110, 15);
+    Uint32 border = getpixel(graphics, 100, 2);
+
+    SDL_SetColorKey(graphics, SDL_SRCCOLORKEY, background);
+
+    InitGame();
+
+    SDL_FillRect(screen, NULL, background);
+    BorderedRect(screen, fieldX-1, fieldY-1, fieldW+2, fieldH+2, border, fieldBackground);
+    DrawStatic();
+
+
+    SDL_Flip(screen);
 
     SDL_Event event;
 

@@ -30,6 +30,7 @@
 		</Build>
 		<Compiler>
 			<Add option="-Wall" />
+			<Add option="-std=c99" />
 			<Add directory="F:\Projects\SDL-1.2.15\include" />
 		</Compiler>
 		<Linker>
