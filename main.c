@@ -25,6 +25,14 @@ Uint32 started;
 SDL_Rect blocks[6];
 char field[12][25];
 
+unsigned int figures [7][5]={{0b0000001100100010, 0b0000000001110001, 0b0000001000100110, 0b0000010001110000, 0},
+                             {0b0000011000100010, 0b0000000101110000, 0b0000001000100011, 0b0000000001110100, 0},
+                             {0b0000000001110010, 0b0000001001100010, 0b0000001001110000, 0b0000001000110010, 0},
+                             {0b0000001001100100, 0b0000011000110000, 0, 0, 0},
+                             {0b0000010001100010, 0b0000001101100000, 0, 0, 0},
+                             {0b0000000011110000, 0b0010001000100010, 0, 0, 0},
+                             {0b0000011001100000, 0, 0, 0, 0}};
+
 Uint32 TimeLeft(void)
 {
     static Uint32 next_time = 0;
@@ -125,13 +133,25 @@ void InitGame()
 
 void DrawBlock(int x, int y, char color)
 {
-    if(color<1||color>5) return;
+    if(color<1||color>6) return;
     SDL_Rect dst;
     dst.x = x;
     dst.y = y;
     dst.w = 32;
     dst.h = 32;
-    SDL_BlitSurface(graphics, &blocks[color], screen, &dst);
+    SDL_BlitSurface(graphics, &blocks[color-1], screen, &dst);
+}
+
+void DrawFigure(char figure, char rotation, char color, int x, int y)
+{
+    for(int i = 0;i<4;i++)
+    {
+        for(int j = 0;j<4;j++)
+        {
+            if(figures[figure][rotation]>>(i+j*4)&0b1)
+                DrawBlock(fieldX-2+(x-1)*30+i*30, fieldY-2+(y-4)*30+j*30, color);
+        }
+    }
 }
 
 void DrawStatic()
@@ -177,7 +197,13 @@ int main(int argc, char *argv[])
 
     SDL_FillRect(screen, NULL, background);
     BorderedRect(screen, fieldX-1, fieldY-1, fieldW+2, fieldH+2, border, fieldBackground);
-    DrawStatic();
+    char fig=0;
+    char rot=0;
+    char col=1;
+    char fx=5;
+    char fy=10;
+    //DrawFigure(fig,rot,col,fx,fy);
+    //DrawStatic();
 
 
     SDL_Flip(screen);
@@ -185,6 +211,7 @@ int main(int argc, char *argv[])
     SDL_Event event;
 
     started = SDL_GetTicks();
+
 
     //Главный цикл
     while(true)
@@ -198,7 +225,30 @@ int main(int argc, char *argv[])
 
                 break;
             case SDL_KEYDOWN:
-
+                    switch(event.key.keysym.sym)
+                    {
+                        case SDLK_LEFT:
+                            fx--;
+                        break;
+                        case SDLK_RIGHT:
+                            fx++;
+                        break;
+                        case SDLK_UP:
+                            fy--;
+                        break;
+                        case SDLK_DOWN:
+                            fy++;
+                        break;
+                        case SDLK_r:
+                            rot = figures[fig][rot+1]!=0?rot+1:0;
+                        break;
+                        case SDLK_c:
+                            col = col<6?col+1:1;
+                        break;
+                        case SDLK_f:
+                            fig = fig<6?fig+1:0;
+                        break;
+                    }
                 break;
             case SDL_KEYUP:
                 if(event.key.keysym.sym==SDLK_ESCAPE)
@@ -213,6 +263,10 @@ int main(int argc, char *argv[])
         {
             started = SDL_GetTicks();
         }
+
+        SDL_FillRect(screen, NULL, fieldBackground);
+        DrawFigure(fig,rot,col,fx,fy);
+        SDL_UpdateRect(screen, fieldX, fieldY, fieldW, fieldH);
         //Перерыв. Чтоб программа не жрала все ядро
         SDL_Delay(TimeLeft());
     }
