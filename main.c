@@ -218,8 +218,18 @@ void NewFigure()
     figureX = 5;
     //figureY = 1;
 
-    nextFigure = rand()%7;
-    nextColor = rand()%6+1;
+    do
+    {
+        nextFigure = rand()%7;
+    }
+    while(nextFigure==curFigure);
+
+    do
+    {
+        nextColor = rand()%6+1;
+    }
+    while(nextColor==curColor);
+
     switch(nextFigure)
     {
     case 0:
@@ -370,6 +380,8 @@ int main(int argc, char *argv[])
 
         if(SDL_GetTicks()-started>period_ms)
         {
+            int moves;
+
             switch(state)
             {
             case STATE_FALLING:
@@ -384,12 +396,62 @@ int main(int argc, char *argv[])
                         }
                     }
 
+                    bool isFull;
+                    bool fullExist = false;
+
+                    for(int j = 23; j>3; j--)
+                    {
+                        isFull = true;
+                        for(int i = 1; i<11; i++)
+                        {
+                            if(field[i][j]==0)
+                            {
+                                isFull = false;
+                                break;
+                            }
+                        }
+
+                        if(isFull)
+                        {
+                            for(int i = 2; i<11; i++)
+                            {
+                                field[i][j]=0;
+                            }
+                            field[1][j] = 100;
+                            fullExist = true;
+                        }
+                    }
+
                     NewFigure();
+
+                    if(fullExist) state = STATE_PACKING;
                 }
                 else
                 {
                     figureY++;
                 }
+                break;
+                case STATE_PACKING:
+                    moves = 0;
+                    for(int j = 23; j>3; j--)
+                    {
+                        if(field[1][j]==100)
+                        {
+                            moves++;
+                        }
+                        else
+                        {
+                            if(moves>0)
+                            {
+                                for(int i = 1; i<11; i++)
+                                {
+                                    field[i][j+moves] = field[i][j];
+                                    field[i][j] = 0;
+                                }
+                            }
+                        }
+                    }
+                    state = STATE_FALLING;
                 break;
             }
             started = SDL_GetTicks();
