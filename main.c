@@ -16,6 +16,11 @@
 #define screenWidth 800
 #define screenHeight 800
 
+#define STATE_FALLING 1
+#define STATE_LANDING 2
+#define STATE_PACKING 3
+#define STATE_GAMEOVER 4
+
 
 int fieldX = (screenWidth-fieldW)/2;
 int fieldY = (screenWidth-fieldH)/2;
@@ -24,14 +29,40 @@ SDL_Surface* graphics;
 Uint32 started;
 SDL_Rect blocks[6];
 char field[12][25];
+char title[100];
 
-unsigned int figures [7][5]={{0b0000001100100010, 0b0000000001110001, 0b0000001000100110, 0b0000010001110000, 0},
-                             {0b0000011000100010, 0b0000000101110000, 0b0000001000100011, 0b0000000001110100, 0},
-                             {0b0000000001110010, 0b0000001001100010, 0b0000001001110000, 0b0000001000110010, 0},
-                             {0b0000001001100100, 0b0000011000110000, 0, 0, 0},
-                             {0b0000010001100010, 0b0000001101100000, 0, 0, 0},
-                             {0b0000000011110000, 0b0010001000100010, 0, 0, 0},
-                             {0b0000011001100000, 0, 0, 0, 0}};
+unsigned int figures [7][5]=
+{
+    {0b0000001100100010, 0b0000000001110001, 0b0000001000100110, 0b0000010001110000, 0},
+    {0b0000011000100010, 0b0000000101110000, 0b0000001000100011, 0b0000000001110100, 0},
+    {0b0000000001110010, 0b0000001001100010, 0b0000001001110000, 0b0000001000110010, 0},
+    {0b0000001001100100, 0b0000011000110000, 0, 0, 0},
+    {0b0000010001100010, 0b0000001101100000, 0, 0, 0},
+    {0b0000000011110000, 0b0010001000100010, 0, 0, 0},
+    {0b0000011001100000, 0, 0, 0, 0}
+};
+
+//Данные по фигурам [нижняя граница, центрХ, центрY] центр относительно ориджина
+float figInfo[7][4][3]=
+{
+    { {2.0, 0.0, 0.5}, {1.0, 0.5, 0.0}, {2.0, 1.0, 0.5}, {2.0, 0.5, 1.0} },
+    { {2.0, 1.0, 0.5}, {2.0, 0.5, 1.0}, {2.0, 0.0, 0.5}, {1.0, 0.5, 0.0} },
+    { {1.0, 0.5, 0.0}, {2.0, 1.0, 0.5}, {2.0, 0.5, 1.0}, {2.0, 0.0, 0.5} },
+    { {2.0, 1.0, 0.5}, {2.0, 0.5, 1.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0} },
+    { {2.0, 1.0, 0.5}, {2.0, 0.5, 1.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0} },
+    { {1.0, 1.0, 0.5}, {3.0, 0.5, 1.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0} },
+    { {2.0, 1.0, 1.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0} },
+};
+
+char state;
+char curFigure, nextFigure;
+char curRotation, nextRotation;
+char curColor, nextColor;
+int figureX, figureY;
+
+Uint32 background;
+Uint32 fieldBackground;
+Uint32 border;
 
 Uint32 TimeLeft(void)
 {
@@ -129,40 +160,104 @@ void InitGame()
     {
         field[i][24] = 1;
     }
+
+    srand(time(NULL));
 }
 
-void DrawBlock(int x, int y, char color)
+void DrawBlock(float x, float y, char color)
 {
-    if(color<1||color>6) return;
+    if(color<1||color>6||y<4) return;
     SDL_Rect dst;
-    dst.x = x;
-    dst.y = y;
+    dst.x = fieldX-2+(x-1)*30;
+    dst.y = fieldY-2+(y-4)*30;
     dst.w = 32;
     dst.h = 32;
     SDL_BlitSurface(graphics, &blocks[color-1], screen, &dst);
 }
 
-void DrawFigure(char figure, char rotation, char color, int x, int y)
+void DrawFigure(char figure, char rotation, char color, float x, float y)
 {
-    for(int i = 0;i<4;i++)
+    //int k;
+    for(int i = 0; i<4; i++)
     {
-        for(int j = 0;j<4;j++)
+        for(int j = 0; j<4; j++)
         {
             if(figures[figure][rotation]>>(i+j*4)&0b1)
-                DrawBlock(fieldX-2+(x-1)*30+i*30, fieldY-2+(y-4)*30+j*30, color);
+            {
+                DrawBlock(x+i-1, y+j-1, color);
+                /*k=y+j;
+                while(field[(int)(x+i-1)][k]==0)
+                {
+                    DrawBlock(x+i-1, k, 1);
+                    k++;
+                }*/
+            }
         }
     }
+    //char ncolor = 7-color;
+    //DrawBlock((float)(figInfo[figure][rotation][1]+x)-0.5, (float)(figInfo[figure][rotation][2]+y)-0.5, ncolor);
+    //DrawBlock((float)(figInfo[figure][rotation][1]+x)-0.5, figInfo[figure][rotation][0]+y, ncolor);
 }
 
 void DrawStatic()
 {
-    for(int i = 1; i<11; i++)
+    for(int i = 1; i<11; i++)  //1 11
     {
-        for(int j = 4; j<24; j++)
+        for(int j = 4; j<24; j++)   //4 24
         {
-            DrawBlock(fieldX-2+(i-1)*30, fieldY-2+(j-4)*30, field[i][j]);
+            DrawBlock(i, j, field[i][j]);
         }
     }
+}
+
+void NewFigure()
+{
+    curFigure = nextFigure;
+    curRotation = nextRotation;
+    curColor = nextColor;
+    figureX = 5;
+    //figureY = 1;
+
+    nextFigure = rand()%7;
+    nextColor = rand()%6+1;
+    switch(nextFigure)
+    {
+    case 0:
+    case 1:
+    case 2:
+        nextRotation = rand()%4;
+        break;
+
+    case 3:
+    case 4:
+    case 5:
+        nextRotation = rand()%2;
+        break;
+
+    case 6:
+        nextRotation = 0;
+    }
+
+    figureY = 4-figInfo[curFigure][curRotation][0];
+
+    //SDL_FillRect(screen, NULL, fieldBackground);
+    //DrawFigure(nextFigure, nextRotation, nextColor, 14.5-figInfo[nextFigure][nextRotation][1], 6.5-figInfo[nextFigure][nextRotation][2]);
+    //SDL_UpdateRect(screen, fieldX+30*11, fieldY, 30*5, 30*5);
+    //sprintf(title, "Figure %d, Rotation %d, Color %d", curFigure, curRotation, curColor);
+    //SDL_WM_SetCaption(title,NULL);
+}
+
+bool IsCollide(int x, int y, int rotation)
+{
+    for(int i = 0; i<4; i++)
+    {
+        for(int j = 0; j<4; j++)
+        {
+            if( (figures[curFigure][rotation]>>(i+j*4)&0b1) && (field[x+i-1][y+j-1]!=0))
+                return true;
+        }
+    }
+    return false;
 }
 
 int main(int argc, char *argv[])
@@ -187,21 +282,22 @@ int main(int argc, char *argv[])
 
     graphics = SDL_LoadBMP("graphics.bmp");
 
-    Uint32 background = getpixel(graphics, 0, 0);
-    Uint32 fieldBackground = getpixel(graphics, 110, 15);
-    Uint32 border = getpixel(graphics, 100, 2);
+    background = getpixel(graphics, 0, 0);
+    fieldBackground = getpixel(graphics, 110, 15);
+    border = getpixel(graphics, 100, 2);
 
     SDL_SetColorKey(graphics, SDL_SRCCOLORKEY, background);
 
     InitGame();
 
-    SDL_FillRect(screen, NULL, background);
-    BorderedRect(screen, fieldX-1, fieldY-1, fieldW+2, fieldH+2, border, fieldBackground);
-    char fig=0;
-    char rot=0;
-    char col=1;
-    char fx=5;
-    char fy=10;
+    //SDL_FillRect(screen, NULL, background);
+    //BorderedRect(screen, fieldX-1, fieldY-1, fieldW+2, fieldH+2, border, fieldBackground);
+    //BorderedRect(screen, fieldX-1+30*11, fieldY-1, 30*5+2, 30*5+2, border, fieldBackground);
+    curFigure=0;
+    curRotation=0;
+    curColor=2;
+    figureX=5;
+    figureY=10;
     //DrawFigure(fig,rot,col,fx,fy);
     //DrawStatic();
 
@@ -210,7 +306,13 @@ int main(int argc, char *argv[])
 
     SDL_Event event;
 
+    NewFigure();
+    NewFigure();
+    state = STATE_FALLING;
+
     started = SDL_GetTicks();
+
+    char tRotation;
 
 
     //Главный цикл
@@ -219,54 +321,91 @@ int main(int argc, char *argv[])
         //Обработка событий от SDL
         while (SDL_PollEvent(&event))
         {
-            switch (event.type)
+            if(state==STATE_FALLING)
             {
-            case SDL_MOUSEBUTTONDOWN:
+                switch (event.type)
+                {
+                case SDL_MOUSEBUTTONDOWN:
 
-                break;
-            case SDL_KEYDOWN:
+                    break;
+                case SDL_KEYDOWN:
                     switch(event.key.keysym.sym)
                     {
-                        case SDLK_LEFT:
-                            fx--;
+                    case SDLK_LEFT:
+                        if(!IsCollide(figureX-1, figureY, curRotation)) figureX--;
                         break;
-                        case SDLK_RIGHT:
-                            fx++;
+                    case SDLK_RIGHT:
+                        if(!IsCollide(figureX+1, figureY, curRotation)) figureX++;
                         break;
-                        case SDLK_UP:
-                            fy--;
+                    case SDLK_DOWN:
+                        if(!IsCollide(figureX, figureY+1, curRotation)) figureY++;
                         break;
-                        case SDLK_DOWN:
-                            fy++;
+                    case SDLK_UP:
+                        tRotation = figures[curFigure][curRotation+1]!=0?curRotation+1:0;
+                        if(!IsCollide(figureX, figureY, tRotation)) curRotation = tRotation;
                         break;
-                        case SDLK_r:
-                            rot = figures[fig][rot+1]!=0?rot+1:0;
+                    case SDLK_END:
+                        if(!IsCollide(figureX, figureY-1, curRotation)) figureY--;
                         break;
-                        case SDLK_c:
-                            col = col<6?col+1:1;
+                    case SDLK_c:
+                        curColor = curColor<6?curColor+1:1;
                         break;
-                        case SDLK_f:
-                            fig = fig<6?fig+1:0;
+                    case SDLK_f:
+                        curFigure = curFigure<6?curFigure+1:0;
+                        break;
+                    case SDLK_n:
+                        NewFigure();
                         break;
                     }
-                break;
-            case SDL_KEYUP:
-                if(event.key.keysym.sym==SDLK_ESCAPE)
+                    break;
+                case SDL_KEYUP:
+                    if(event.key.keysym.sym==SDLK_ESCAPE)
+                        exit(0);
+                    break;
+                case SDL_QUIT:
                     exit(0);
-                break;
-            case SDL_QUIT:
-                exit(0);
+                }
             }
         }
 
         if(SDL_GetTicks()-started>period_ms)
         {
+            switch(state)
+            {
+            case STATE_FALLING:
+                if(IsCollide(figureX, figureY+1, curRotation))
+                {
+                    for(int i = 0; i<4; i++)
+                    {
+                        for(int j = 0; j<4; j++)
+                        {
+                            if(figures[curFigure][curRotation]>>(i+j*4)&0b1)
+                                field[figureX+i-1][figureY+j-1] = curColor;
+                        }
+                    }
+
+                    NewFigure();
+                }
+                else
+                {
+                    figureY++;
+                }
+                break;
+            }
             started = SDL_GetTicks();
         }
 
-        SDL_FillRect(screen, NULL, fieldBackground);
-        DrawFigure(fig,rot,col,fx,fy);
-        SDL_UpdateRect(screen, fieldX, fieldY, fieldW, fieldH);
+        //SDL_FillRect(screen, NULL, fieldBackground);
+        SDL_FillRect(screen, NULL, background);
+        BorderedRect(screen, fieldX-1, fieldY-1, fieldW+2, fieldH+2, border, fieldBackground);
+        BorderedRect(screen, fieldX-1+30*11, fieldY-1, 30*5+2, 30*5+2, border, fieldBackground);
+        DrawStatic();
+        DrawFigure(curFigure, curRotation, curColor, figureX, figureY);
+        DrawFigure(nextFigure, nextRotation, nextColor, 14.5-figInfo[nextFigure][nextRotation][1], 6.5-figInfo[nextFigure][nextRotation][2]);
+        //DrawFigure(fig, rot, col, fx, fy);
+        //SDL_UpdateRect(screen, fieldX, fieldY, fieldW, fieldH);
+        SDL_Flip(screen);
+
         //Перерыв. Чтоб программа не жрала все ядро
         SDL_Delay(TimeLeft());
     }
